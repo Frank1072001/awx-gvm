@@ -1,0 +1,70 @@
+---
+- name: Crear un target y ejecutar un escaneo en GVM
+  hosts: localhost
+  gather_facts: no
+  vars_prompt:
+    - name: "target_name"
+      prompt: "Nombre del target"
+      private: no
+    - name: "target_ip"
+      prompt: "IP del target"
+      private: no
+    - name: "task_name"
+      prompt: "Nombre de la tarea"
+      private: no
+
+  vars:
+    gvm_user: "admin"
+    gvm_password: "11611961-1693-46cb-8f87-c342fd642dd6"
+    scan_config_id: "daba56c8-73ec-11df-a475-002264764cea"
+    port_list_id: "33d0cd82-57c6-11e1-8ed1-406186ea4fc5"
+    scanner_id: "08b69003-5fc2-4037-a479-93b440211c73"
+
+  tasks:
+    - name: Crear objetivo en GVM
+      shell: |
+        gvm-cli socket --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }} --socketpath /run/gvmd/gvmd.sock --xml "
+        <create_target>
+          <name>{{ target_name }}</name>
+          <hosts>{{ target_ip }}</hosts>
+          <port_list id='{{ port_list_id }}'/>
+          <alive_test>Scan Config Default</alive_test>
+        </create_target>"
+      register: target_result
+
+    - name: Verificar resultado de creación del target
+      debug:
+        var: target_result.stdout
+
+    - name: Extraer el ID del target creado
+      set_fact:
+        target_id: "{{ target_result.stdout | regex_search('id=\"([a-f0-9\\-]+)\"', '\\1') | first }}"
+
+    - name: Crear tarea de escaneo en GVM
+      shell: |
+        gvm-cli socket --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }} --socketpath /run/gvmd/gvmd.sock --xml "
+        <create_task>
+          <name>{{ task_name }}</name>
+          <target id='{{ target_id }}'/>
+          <config id='{{ scan_config_id }}'/>
+          <scanner id='{{ scanner_id }}'/>
+        </create_task>"
+      register: task_result
+
+    - name: Verificar resultado de creación de la tarea
+      debug:
+        var: task_result.stdout
+
+    - name: Extraer el ID de la tarea creada
+      set_fact:
+        task_id: "{{ task_result.stdout | regex_search('id=\"([a-f0-9\\-]+)\"', '\\1') | first }}"
+
+    - name: Iniciar la tarea de escaneo en GVM
+      shell: |
+        gvm-cli socket --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }} --socketpath /run/gvmd/gvmd.sock --xml "
+        <start_task task_id='{{ task_id }}' />"
+      register: start_result
+
+    - name: Mostrar Task ID
+      debug:
+        msg: "task_id: {{ task_id }}"
