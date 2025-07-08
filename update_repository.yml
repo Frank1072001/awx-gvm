@@ -1,0 +1,12 @@
+---
+- name: Actualizar paquetes en todos los servidores
+  hosts: all
+  become: yes  # Eleva privilegios a root
+  tasks:
+    - name: Ejecutar 'yum update'
+      shell: yum update
+      register: result  # Guardar el resultado en una variable
+
+    - name: Mostrar el resultado
+      debug:
+        var: result.stdout  # Mostrar salida estándar del comando

@@ -1,0 +1,36 @@
+---
+- name: Ejecutar consulta SQL en PostgreSQL
+  hosts: localhost
+  gather_facts: no
+  vars:
+    pg_user: "postgres"  # Usuario de PostgreSQL
+    pg_password: "2014563"  # Contraseña de PostgreSQL
+    pg_db: "gvmd"  # Nombre de la base de datos PostgreSQL
+    pg_host: "localhost"  # Dirección del servidor PostgreSQL
+
+  tasks:
+    - name: Ejecutar consulta SQL en PostgreSQL
+      community.postgresql.postgresql_query:
+        db: "{{ pg_db }}"
+        query: |
+          SELECT r.host, r.hostname, r.port, n.cve, n.name AS vulnerability_name, r.severity
+          FROM results r
+          JOIN nvts n ON r.nvt = n.oid
+          WHERE r.report = (
+              SELECT MAX(rep.id)
+              FROM reports rep
+          )
+          AND n.modification_time = (
+              SELECT MAX(n2.modification_time)
+              FROM nvts n2
+              WHERE n2.oid = n.oid
+          )
+          ORDER BY r.host, r.port;
+        login_user: "{{ pg_user }}"
+        login_password: "{{ pg_password }}"
+        login_host: "{{ pg_host }}"
+      register: query_result
+
+    - name: Mostrar los resultados de la consulta
+      debug:
+        var: query_result.query_result

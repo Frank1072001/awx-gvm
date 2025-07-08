@@ -1,0 +1,71 @@
+<?php
+require 'vendor/autoload.php';  // Asegúrate de que el path a autoload.php sea correcto
+
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+
+// Conexión a la base de datos
+$conn = pg_connect("host=localhost dbname=gvmd user=postgres password=2014563");
+
+if (!$conn) {
+    die("Connection failed: " . pg_last_error());
+}
+
+// Ejecutar la consulta
+$query = "
+    SELECT r.host, r.hostname, r.port, n.cve, n.name AS vulnerability_name, r.severity, n.solution
+    FROM results r
+    JOIN nvts n ON r.nvt = n.oid
+    WHERE r.host IN ('192.168.81.144')
+    AND n.modification_time = (
+      SELECT MAX(n2.modification_time)
+      FROM nvts n2
+      WHERE n2.oid = n.oid
+    )
+    ORDER BY r.host, r.port;
+";
+
+$result = pg_query($conn, $query);
+
+if (!$result) {
+    die("Error en la consulta: " . pg_last_error());
+}
+
+// Crear un nuevo objeto Spreadsheet
+$spreadsheet = new Spreadsheet();
+$sheet = $spreadsheet->getActiveSheet();
+
+// Títulos de las columnas
+$sheet->setCellValue('A1', 'Host');
+$sheet->setCellValue('B1', 'Port');
+$sheet->setCellValue('C1', 'CVE');
+$sheet->setCellValue('D1', 'Vulnerability Name');
+$sheet->setCellValue('E1', 'Severity');
+$sheet->setCellValue('F1', 'Solution');
+
+// Escribir los datos
+$row = 2;
+while ($row_data = pg_fetch_assoc($result)) {
+    $sheet->setCellValue('A' . $row, $row_data['hostname']);
+    $sheet->setCellValue('B' . $row, $row_data['port']);
+    $sheet->setCellValue('C' . $row, $row_data['cve']);
+    $sheet->setCellValue('D' . $row, $row_data['vulnerability_name']);
+    $sheet->setCellValue('E' . $row, $row_data['severity']);
+    $sheet->setCellValue('F' . $row, $row_data['solution']);
+    $row++;
+}
+
+// Cerrar la conexión a la base de datos
+pg_close($conn);
+
+// Crear un escritor de Excel
+$writer = new Xlsx($spreadsheet);
+
+// Guardar el archivo Excel
+$filename = 'Vulnerabilidades_DetectadasAAAA.xlsx';
+header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+header('Content-Disposition: attachment;filename="' . $filename . '"');
+header('Cache-Control: max-age=0');
+$writer->save('php://output');
+exit;
+?>

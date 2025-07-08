@@ -1,0 +1,81 @@
+---
+- name: Migrar datos de archivo Excel a MariaDB
+  hosts: localhost
+  gather_facts: no
+  vars:
+    mariadb_user: "root"
+    mariadb_password: ""
+    mariadb_host: "localhost"
+    mariadb_db: "datos_migrados"
+    mariadb_table: "vulnerabilidad_host"
+    excel_file: "/tmp/Vulnerabilidades_Detectadas_1733292471.xlsx"
+    csv_file: "/tmp/Vulnerabilidades_Detectadas.csv"  # Ruta donde se guardará el CSV
+
+  tasks:
+
+    # Instalar dependencias necesarias para convertir Excel a CSV
+    - name: Instalar dependencias para Excel y CSV
+      ansible.builtin.apt:
+        name:
+          - python3-pandas
+          - python3-openpyxl
+        state: present
+      become: yes  # Necesario si no tienes permisos de root
+
+    # Convertir el archivo Excel a CSV usando un script Python
+    - name: Convertir archivo Excel a CSV
+      ansible.builtin.shell: |
+        python3 -c "
+        import pandas as pd;
+        df = pd.read_excel('{{ excel_file }}');
+        df.to_csv('{{ csv_file }}', index=False)
+        "
+      args:
+        creates: "{{ csv_file }}"  # Evita ejecutar el comando si el archivo CSV ya existe
+
+    # Crear la base de datos si no existe
+    - name: Crear la base de datos si no existe
+      community.mysql.mysql_db:
+        name: "{{ mariadb_db }}"
+        state: present
+        login_user: "{{ mariadb_user }}"
+        login_password: "{{ mariadb_password }}"
+        login_host: "{{ mariadb_host }}"
+
+    # Crear la tabla en la base de datos si no existe
+    - name: Crear la tabla si no existe
+      community.mysql.mysql_query:
+        query: |
+          CREATE TABLE IF NOT EXISTS {{ mariadb_table }} (
+            host VARCHAR(255),
+            port VARCHAR(50),
+            cve VARCHAR(255),
+            vulnerability_name VARCHAR(255),
+            severity VARCHAR(50),
+            solution TEXT
+          );
+        login_db: "{{ mariadb_db }}"  # Usamos login_db en lugar de db
+        login_user: "{{ mariadb_user }}"
+        login_password: "{{ mariadb_password }}"
+        login_host: "{{ mariadb_host }}"
+
+    # Leer los datos desde el archivo CSV
+    - name: Leer los datos desde el archivo CSV
+      community.general.read_csv:
+        path: "{{ csv_file }}"
+      register: csv_data
+
+    # Insertar los datos en la base de datos MariaDB
+    - name: Insertar los datos en la base de datos MariaDB
+      community.mysql.mysql_query:
+        query: |
+          INSERT INTO {{ mariadb_table }} (host, port, cve, vulnerability_name, severity, solution)
+          VALUES
+          {% for row in csv_data.list %}
+            ( '{{ row.Host }}', '{{ row.Port }}', '{{ row.CVE }}', '{{ row["Vulnerability Name"] }}', '{{ row.Severity }}', '{{ row.Solution }}' )
+            {% if not loop.last %}, {% endif %}
+          {% endfor %}
+        login_db: "{{ mariadb_db }}"  # Usamos login_db en lugar de db
+        login_user: "{{ mariadb_user }}"
+        login_password: "{{ mariadb_password }}"
+        login_host: "{{ mariadb_host }}"
