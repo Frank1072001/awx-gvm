@@ -1,10 +1,8 @@
 ---
-- name: Crear un target y ejecutar un escaneo en GVM usando SSH
+- name: Crear un target y ejecutar un escaneo en GVM usando SSH sin contraseña
   hosts: localhost
   gather_facts: false
   vars:
-    gvm_user: "admin"
-    gvm_password: "11611961-1693-46cb-8f87-c342fd642dd6"
     target_ip: "192.168.81.129"
     scan_config_id: "daba56c8-73ec-11df-a475-002264764cea"
     port_list_id: "33d0cd82-57c6-11e1-8ed1-406186ea4fc5"
@@ -16,7 +14,7 @@
   tasks:
     - name: Crear objetivo en GVM vía SSH
       shell: |
-        gvm-cli ssh --hostname 127.0.0.1 --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }} --xml "
+        gvm-cli ssh --hostname 127.0.0.1 --xml "
         <create_target>
           <name>{{ target_name }}</name>
           <hosts>{{ target_ip }}</hosts>
@@ -35,7 +33,7 @@
 
     - name: Crear tarea de escaneo en GVM vía SSH
       shell: |
-        gvm-cli ssh --hostname 127.0.0.1 --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }} --xml "
+        gvm-cli ssh --hostname 127.0.0.1 --xml "
         <create_task>
           <name>{{ task_name }}</name>
           <target id='{{ target_id }}'/>
@@ -54,10 +52,11 @@
 
     - name: Iniciar la tarea de escaneo en GVM vía SSH
       shell: |
-        gvm-cli ssh --hostname 127.0.0.1 --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }} --xml "
+        gvm-cli ssh --hostname 127.0.0.1 --xml "
         <start_task task_id='{{ task_id }}'/>"
       register: start_result
 
     - name: Mostrar ID de la tarea iniciada
       debug:
         msg: "Escaneo iniciado. task_id: {{ task_id }}"
+
