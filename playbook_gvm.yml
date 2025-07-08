@@ -1,19 +1,22 @@
 ---
-- name: Crear un target y ejecutar un escaneo en GVM
+- name: Crear un target y ejecutar un escaneo en GVM usando SSH
   hosts: localhost
+  gather_facts: false
   vars:
     gvm_user: "admin"
     gvm_password: "11611961-1693-46cb-8f87-c342fd642dd6"
-    target_ip: "{{ target_ip }}"  # Usar la IP proporcionada
+    target_ip: "192.168.81.129"
     scan_config_id: "daba56c8-73ec-11df-a475-002264764cea"
     port_list_id: "33d0cd82-57c6-11e1-8ed1-406186ea4fc5"
+    scanner_id: "08b69003-5fc2-4037-a479-93b440211c73"
     alive_test: "Scan Config Default"
+    target_name: "MiTargetDesdeAWX"
+    task_name: "MiTareaDesdeAWX"
 
   tasks:
-    - name: Crear objetivo en GVM
-      shell: >
-        gvm-cli --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }}
-        socket --socketpath /run/gvmd/gvmd.sock --xml "
+    - name: Crear objetivo en GVM vía SSH
+      shell: |
+        gvm-cli ssh --hostname 127.0.0.1 --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }} --xml "
         <create_target>
           <name>{{ target_name }}</name>
           <hosts>{{ target_ip }}</hosts>
@@ -22,42 +25,39 @@
         </create_target>"
       register: target_result
 
-    - name: Verificar resultado de creación del target
+    - name: Verificar salida creación del target
       debug:
         var: target_result.stdout
 
-    - name: Extraer el ID del target creado
+    - name: Obtener ID del target
       set_fact:
         target_id: "{{ target_result.stdout | regex_search('id=\"([a-f0-9\\-]+)\"', '\\1') | first }}"
 
-    - name: Crear tarea de escaneo en GVM
-      shell: >
-        gvm-cli --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }}
-        socket --socketpath /run/gvmd/gvmd.sock --xml "
+    - name: Crear tarea de escaneo en GVM vía SSH
+      shell: |
+        gvm-cli ssh --hostname 127.0.0.1 --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }} --xml "
         <create_task>
           <name>{{ task_name }}</name>
           <target id='{{ target_id }}'/>
           <config id='{{ scan_config_id }}'/>
-          <scanner id='08b69003-5fc2-4037-a479-93b440211c73' />
+          <scanner id='{{ scanner_id }}'/>
         </create_task>"
       register: task_result
 
-    - name: Verificar resultado de creación de la tarea
+    - name: Verificar salida creación de la tarea
       debug:
         var: task_result.stdout
 
-    - name: Extraer el ID de la tarea creada
+    - name: Obtener ID de la tarea
       set_fact:
         task_id: "{{ task_result.stdout | regex_search('id=\"([a-f0-9\\-]+)\"', '\\1') | first }}"
 
-    - name: Iniciar la tarea de escaneo en GVM
-      shell: >
-        gvm-cli --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }}
-        socket --socketpath /run/gvmd/gvmd.sock --xml "
-        <start_task task_id='{{ task_id }}' />"
+    - name: Iniciar la tarea de escaneo en GVM vía SSH
+      shell: |
+        gvm-cli ssh --hostname 127.0.0.1 --gmp-username {{ gvm_user }} --gmp-password {{ gvm_password }} --xml "
+        <start_task task_id='{{ task_id }}'/>"
       register: start_result
 
-    - name: Mostrar Task ID
+    - name: Mostrar ID de la tarea iniciada
       debug:
-        msg: "task_id: {{ task_id }}"
-
+        msg: "Escaneo iniciado. task_id: {{ task_id }}"
